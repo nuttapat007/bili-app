@@ -1,7 +1,7 @@
 .bili-container {
   max-width: 2000px;
   margin: auto;
-  padding: 2rem;
+  padding: 1rem;
   border-radius: 0.5rem;
   border: 1px solid #ccc;
   background-color: #fdfdfd;
@@ -57,7 +57,7 @@
   border-radius: 8px;
   padding: 1rem;
   background-color: #fdfdfd;
-  margin: 20px;
+  margin-top: 20px;
   text-align: center;
 }
 

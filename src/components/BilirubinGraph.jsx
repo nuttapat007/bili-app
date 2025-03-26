@@ -220,7 +220,7 @@ const BilirubinGraph = () => {
       { age_h: 60, bilirubin: 13.5 },
       { age_h: 72, bilirubin: 14.5 },
       { age_h: 84, bilirubin: 15.5 },
-      { age_h: 96, bilirubin: 18.5 },
+      { age_h: 96, bilirubin: 16.0 },
       { age_h: 108, bilirubin: 16.1 },
       { age_h: 120, bilirubin: 16.2 },
       { age_h: 132, bilirubin: 16.3 },
@@ -285,6 +285,10 @@ const BilirubinGraph = () => {
   const [showLine, setShowLine] = useState(true);
   const [threshold, setThreshold] = useState(null);
   const [threshold_new, setThreshold_new] = useState(null);
+
+  const bilirubinNewGraphData = risk_fact
+    ? bilirubinRiskData_new_risk // <-- this is your at-risk data
+    : bilirubinRiskData_new_norisk; // <-- this is your renamed no-risk data
 
   const generateGraphData = () => {
     calculateAgeInHours(dob);
@@ -355,9 +359,6 @@ const BilirubinGraph = () => {
 
     setThreshold_new(interpolatedThreshold_new);
   };
-  const bilirubinNewGraphData = risk_fact
-    ? bilirubinRiskData_new_risk // <-- this is your at-risk data
-    : bilirubinRiskData_new_norisk; // <-- this is your renamed no-risk data
 
   const riskStatusText = risk_fact
     ? "At Risk for neurotoxicity"
@@ -599,7 +600,7 @@ const BilirubinGraph = () => {
                 position: "absolute",
                 top: "200px",
                 right: "1rem",
-                fontSize: "0.85rem",
+                fontSize: "0.7rem",
                 fontWeight: "bold",
                 color: riskStatusColor,
                 backgroundColor: "#fff",
