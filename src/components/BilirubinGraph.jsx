@@ -23,7 +23,7 @@ const BilirubinGraph = () => {
   const [poorApgarOrSepsis, setPoorApgarOrSepsis] = useState(false);
   const ABO_incomp =
     motherBloodGroup === "O" && ["A", "B", "AB"].includes(fatherBloodGroup);
-  const risk_fact = poorApgarOrSepsis || ABO_incomp;
+  const risk_fact = poorApgarOrSepsis || ABO_incomp || gender === "Male";
   const [risk, setRisk] = useState("Low");
   // Automatically calculate risk based on GA and risk factors
   React.useEffect(() => {
@@ -246,8 +246,8 @@ const BilirubinGraph = () => {
       { age_h: 168, bilirubin: 17.5 },
     ],
     GA_37: [
-      { age_h: 0, bilirubin: 5.9 },
-      { age_h: 12, bilirubin: 7 },
+      { age_h: 0, bilirubin: 6 },
+      { age_h: 12, bilirubin: 8 },
       { age_h: 24, bilirubin: 10 },
       { age_h: 36, bilirubin: 12 },
       { age_h: 48, bilirubin: 13.5 },
@@ -324,8 +324,7 @@ const BilirubinGraph = () => {
     setThreshold(interpolatedThreshold);
     //
 
-    const gaKey = `GA_${ga}`;
-    const thresholdData_new = bilirubinNewGraphData[gaKey];
+    const thresholdData_new = bilirubinNewGraphData[gaKey_all];
     let interpolatedThreshold_new = null;
 
     if (thresholdData_new) {
@@ -364,6 +363,8 @@ const BilirubinGraph = () => {
     ? "At Risk for neurotoxicity"
     : "Not At Risk for neurotoxicity";
   const riskStatusColor = risk_fact ? "red" : "green";
+  const gaKey_all =
+    risk_fact && Math.floor(ga) >= 38 ? "GA_38" : `GA_${Math.floor(ga)}`;
 
   return (
     <div className="bili-container">
@@ -382,9 +383,9 @@ const BilirubinGraph = () => {
                     value={Math.floor(ga)}
                     onChange={(e) => setGA(parseInt(e.target.value) + (ga % 1))}
                   >
-                    {[...Array(9)].map((_, i) => (
-                      <option key={i} value={i + 34}>
-                        {i + 34} weeks
+                    {[35, 36, 37, 38, 39, 40].map((week) => (
+                      <option key={week} value={week}>
+                        {week} weeks
                       </option>
                     ))}
                   </select>
@@ -641,15 +642,24 @@ const BilirubinGraph = () => {
                 />
                 <Tooltip />
                 <Legend
-                  formatter={(value) => {
-                    const isActive = value === `GA ${ga} wks`;
-                    return (
-                      <span style={{ opacity: isActive ? 1 : 0.1 }}>
-                        {value}
-                      </span>
-                    );
-                  }}
+                  payload={Object.entries(bilirubinNewGraphData).map(
+                    ([key, _], index) => ({
+                      id: key,
+                      value: `GA ${key.split("_")[1]} wks`,
+                      type: "line",
+                      color: [
+                        "#ff66b2",
+                        "#cc6600",
+                        "#00b2cc",
+                        "#aa3377",
+                        "#ff8000",
+                        "#00665e",
+                      ][index],
+                      inactive: key !== gaKey_all,
+                    })
+                  )}
                 />
+
                 {Object.entries(bilirubinNewGraphData).map(
                   ([key, data], index) => (
                     <Line
@@ -671,7 +681,7 @@ const BilirubinGraph = () => {
                       strokeDasharray={
                         ["GA_35", "GA_37", "GA_39"].includes(key) ? "6 6" : "0"
                       }
-                      strokeOpacity={key === `GA_${ga}` ? 1 : 0.1}
+                      strokeOpacity={key === gaKey_all ? 1 : 0.1}
                       strokeWidth={2}
                       dot={false}
                     />
