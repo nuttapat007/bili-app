@@ -385,7 +385,7 @@ const BilirubinGraph = () => {
                   >
                     {[35, 36, 37, 38, 39, 40].map((week) => (
                       <option key={week} value={week}>
-                        {week} weeks
+                        {week === 40 ? "40 weeks or more" : `${week} weeks`}
                       </option>
                     ))}
                   </select>
@@ -591,113 +591,111 @@ const BilirubinGraph = () => {
             </ComposedChart>
           </ResponsiveContainer>
         </div>
-        <div className="bili-graph">
-          <div className="bili-graph" style={{ position: "relative" }}>
-            <strong className="center-text">New version</strong>
+        <div className="bili-graph" style={{ position: "relative" }}>
+          <strong className="center-text">New version (2022)</strong>
 
-            {/* Overlay text */}
-            <div
-              style={{
-                position: "absolute",
-                top: "200px",
-                right: "1rem",
-                fontSize: "0.7rem",
-                fontWeight: "bold",
-                color: riskStatusColor,
-                backgroundColor: "#fff",
-                padding: "0.25rem 0.5rem",
-                borderRadius: "4px",
-                boxShadow: "0 1px 4px rgba(0,0,0,0.1)",
-              }}
-            >
-              {riskStatusText}
-            </div>
-
-            <ResponsiveContainer width="100%" height={350}>
-              <ComposedChart>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis
-                  dataKey="age_h"
-                  type="number"
-                  domain={[0, 180]}
-                  ticks={[
-                    0, 12, 24, 36, 48, 60, 72, 84, 96, 108, 120, 132, 144, 156,
-                    168,
-                  ]}
-                  label={{
-                    value: "Age (hours)",
-                    position: "insideBottom",
-                    offset: -5,
-                  }}
-                />
-                <YAxis
-                  type="number"
-                  domain={[4, 22]}
-                  ticks={[4, 6, 8, 10, 12, 14, 16, 18, 20, 22]}
-                  label={{
-                    value: "Bilirubin (mg/dL)",
-                    angle: -90,
-                    position: "insideLeft",
-                  }}
-                />
-                <Tooltip />
-                <Legend
-                  payload={Object.entries(bilirubinNewGraphData).map(
-                    ([key, _], index) => ({
-                      id: key,
-                      value: `GA ${key.split("_")[1]} wks`,
-                      type: "line",
-                      color: [
-                        "#ff66b2",
-                        "#cc6600",
-                        "#00b2cc",
-                        "#aa3377",
-                        "#ff8000",
-                        "#00665e",
-                      ][index],
-                      inactive: key !== gaKey_all,
-                    })
-                  )}
-                />
-
-                {Object.entries(bilirubinNewGraphData).map(
-                  ([key, data], index) => (
-                    <Line
-                      key={key}
-                      name={`GA ${key.split("_")[1]} wks`}
-                      type="monotone"
-                      data={data}
-                      dataKey="bilirubin"
-                      stroke={
-                        [
-                          "#ff66b2", // GA_35
-                          "#cc6600", // GA_36
-                          "#00b2cc", // GA_37
-                          "#aa3377", // GA_38
-                          "#ff8000", // GA_39
-                          "#00665e", // GA_40
-                        ][index]
-                      }
-                      strokeDasharray={
-                        ["GA_35", "GA_37", "GA_39"].includes(key) ? "6 6" : "0"
-                      }
-                      strokeOpacity={key === gaKey_all ? 1 : 0.1}
-                      strokeWidth={2}
-                      dot={false}
-                    />
-                  )
-                )}
-                <Scatter
-                  name="Patient Value"
-                  data={bilirubinPoint}
-                  dataKey="bilirubin"
-                  fill="red"
-                  shape="circle"
-                  r={10}
-                />
-              </ComposedChart>
-            </ResponsiveContainer>
+          {/* Overlay text */}
+          <div
+            style={{
+              position: "absolute",
+              top: "200px",
+              right: "1rem",
+              fontSize: "0.7rem",
+              fontWeight: "bold",
+              color: riskStatusColor,
+              backgroundColor: "#fff",
+              padding: "0.25rem 0.5rem",
+              borderRadius: "4px",
+              boxShadow: "0 1px 4px rgba(0,0,0,0.1)",
+            }}
+          >
+            {riskStatusText}
           </div>
+
+          <ResponsiveContainer width="100%" height={350}>
+            <ComposedChart>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis
+                dataKey="age_h"
+                type="number"
+                domain={[0, 180]}
+                ticks={[
+                  0, 12, 24, 36, 48, 60, 72, 84, 96, 108, 120, 132, 144, 156,
+                  168,
+                ]}
+                label={{
+                  value: "Age (hours)",
+                  position: "insideBottom",
+                  offset: -5,
+                }}
+              />
+              <YAxis
+                type="number"
+                domain={[4, 22]}
+                ticks={[4, 6, 8, 10, 12, 14, 16, 18, 20, 22]}
+                label={{
+                  value: "Bilirubin (mg/dL)",
+                  angle: -90,
+                  position: "insideLeft",
+                }}
+              />
+              <Tooltip />
+              <Legend
+                payload={Object.entries(bilirubinNewGraphData).map(
+                  ([key, _], index) => ({
+                    id: key,
+                    value: `GA ${key.split("_")[1]} wks`,
+                    type: "line",
+                    color: [
+                      "#ff66b2",
+                      "#cc6600",
+                      "#00b2cc",
+                      "#aa3377",
+                      "#ff8000",
+                      "#00665e",
+                    ][index],
+                    inactive: key !== gaKey_all,
+                  })
+                )}
+              />
+
+              {Object.entries(bilirubinNewGraphData).map(
+                ([key, data], index) => (
+                  <Line
+                    key={key}
+                    name={`GA ${key.split("_")[1]} wks`}
+                    type="monotone"
+                    data={data}
+                    dataKey="bilirubin"
+                    stroke={
+                      [
+                        "#ff66b2", // GA_35
+                        "#cc6600", // GA_36
+                        "#00b2cc", // GA_37
+                        "#aa3377", // GA_38
+                        "#ff8000", // GA_39
+                        "#00665e", // GA_40
+                      ][index]
+                    }
+                    strokeDasharray={
+                      ["GA_35", "GA_37", "GA_39"].includes(key) ? "6 6" : "0"
+                    }
+                    strokeOpacity={key === gaKey_all ? 1 : 0.1}
+                    strokeWidth={1}
+                    dot={false}
+                  />
+                )
+              )}
+              <Scatter
+                name="Patient Value"
+                data={bilirubinPoint}
+                dataKey="bilirubin"
+                fill="red"
+                shape="circle"
+                r={10}
+              />
+            </ComposedChart>
+          </ResponsiveContainer>
         </div>
       </div>
     </div>
