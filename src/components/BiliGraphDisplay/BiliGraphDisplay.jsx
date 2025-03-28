@@ -10,6 +10,120 @@ import {
   ResponsiveContainer,
   Scatter,
 } from "recharts";
+import "./BiliGraphDisplay.css";
+// --- Custom Tooltip for the OLD Chart ---
+const CustomOldTooltip = ({ active, payload, label, risk }) => {
+  if (active && payload && payload.length) {
+    // Determine the name of the highlighted risk line
+    const highlightedRiskName =
+      risk === "Low"
+        ? "Low Risk"
+        : risk === "Medium"
+        ? "Mod Risk"
+        : "High Risk";
+
+    // Find the data for the highlighted line and the patient value
+    const highlightedData = payload.find(
+      (item) => item.name === highlightedRiskName
+    );
+    // Look for the renamed scatter plot data
+
+    const patientData = payload.find(
+      (item) => item.name === "Patient Bilirubin"
+    ); // <--- Updated Name Here
+
+    // Filter payload to only include highlighted line and patient value
+    const filteredPayload = payload.filter(
+      (item) =>
+        item.name === highlightedRiskName || item.name === "Patient Value"
+    );
+
+    // Don't render tooltip if only patient value exists without a corresponding line value at that point
+    if (!highlightedData && patientData) {
+      // Optional: Or you could choose to show only patient data here
+      // return null;
+    }
+
+    return (
+      <div
+        className="custom-tooltip"
+        style={{
+          backgroundColor: "rgba(255, 255, 255, 0.8)",
+          padding: "10px",
+          border: "1px solid #ccc",
+        }}
+      >
+        <p className="label">{`Age: ${label} hours`}</p>
+        {/* Display data for highlighted line first */}
+        {highlightedData && (
+          <p style={{ color: highlightedData.color }}>
+            {`${highlightedData.name}: ${highlightedData.value?.toFixed(
+              2
+            )} mg/dL`}
+          </p>
+        )}
+        {/* Display patient value if exists */}
+        {patientData && (
+          <p style={{ color: patientData.color, fontWeight: "bold" }}>
+            {`${patientData.name}: ${patientData.value} mg/dL`}
+          </p>
+        )}
+
+        {/* Alternative: Loop through filtered payload */}
+        {/* {filteredPayload.map((pld, index) => (
+          <p key={index} style={{ color: pld.color }}>
+            {`${pld.name}: ${pld.value?.toFixed(2)} mg/dL`}
+          </p>
+        ))} */}
+      </div>
+    );
+  }
+
+  return null; // Return null if tooltip shouldn't be active
+};
+
+// --- Custom Tooltip for the NEW Chart ---
+const CustomNewTooltip = ({ active, payload, label, gaKey_all }) => {
+  if (active && payload && payload.length) {
+    // Determine the name of the highlighted GA line
+    const highlightedGaName = `GA ${gaKey_all?.split("_")[1]} wks`; // Use optional chaining
+
+    // Find the data for the highlighted line and the patient value
+    const highlightedData = payload.find(
+      (item) => item.name === highlightedGaName
+    );
+    const patientData = payload.find((item) => item.name === "Patient Value");
+
+    return (
+      <div
+        className="custom-tooltip"
+        style={{
+          backgroundColor: "rgba(255, 255, 255, 0.8)",
+          padding: "10px",
+          border: "1px solid #ccc",
+        }}
+      >
+        <p className="label">{`Age: ${label} hours`}</p>
+        {/* Display data for highlighted line first */}
+        {highlightedData && (
+          <p style={{ color: highlightedData.color }}>
+            {`${highlightedData.name}: ${highlightedData.value?.toFixed(
+              2
+            )} mg/dL`}
+          </p>
+        )}
+        {/* Display patient value if exists */}
+        {patientData && (
+          <p style={{ color: patientData.color, fontWeight: "bold" }}>
+            {`${patientData.name}: ${patientData.value} mg/dL`}
+          </p>
+        )}
+      </div>
+    );
+  }
+
+  return null; // Return null if tooltip shouldn't be active
+};
 
 const BiliGraphDisplay = ({
   bilirubinRiskData_old,
@@ -54,7 +168,7 @@ const BiliGraphDisplay = ({
           stroke={colorsNewGraph[index % colorsNewGraph.length]} // Use modulo for safety
           strokeDasharray={dashArrayNewGraph(key)}
           strokeOpacity={key === gaKey_all ? 1 : 0.1}
-          strokeWidth={key === gaKey_all ? 2 : 1} // Make highlighted line thicker
+          strokeWidth={key === gaKey_all ? 1 : 1} // Make highlighted line thicker
           dot={false}
           isAnimationActive={false} // Optional: disable animation for faster updates
         />
@@ -95,7 +209,7 @@ const BiliGraphDisplay = ({
                 offset: -5,
               }}
             />
-            <Tooltip />
+            <Tooltip content={<CustomOldTooltip risk={risk} />} />
             <Legend />
             {Object.entries(bilirubinRiskData_old).map(([key, data]) => (
               <Line
@@ -111,7 +225,7 @@ const BiliGraphDisplay = ({
                 data={bilirubinRiskData_old[key]}
                 dataKey="bilirubin"
                 stroke={key === risk ? "#8884d8" : "#8884d84D"}
-                strokeWidth={key === risk ? 2 : 1} // Make highlighted line thicker
+                strokeWidth={key === risk ? 1 : 1}
                 dot={false}
                 isAnimationActive={false} // Optional: disable animation
               />
@@ -119,7 +233,7 @@ const BiliGraphDisplay = ({
             {bilirubinPoint &&
               bilirubinPoint.length > 0 && ( // Only render if point exists
                 <Scatter
-                  name="Patient Value"
+                  name="Patient Bilirubin"
                   data={bilirubinPoint}
                   dataKey="bilirubin"
                   fill="red"
@@ -188,14 +302,14 @@ const BiliGraphDisplay = ({
                 offset: -5,
               }}
             />
-            <Tooltip />
+            <Tooltip content={<CustomNewTooltip gaKey_all={gaKey_all} />} />
             <Legend payload={newGraphLegendPayload} />
             {/* Render the lines */}
             {newGraphLines}
             {bilirubinPoint &&
               bilirubinPoint.length > 0 && ( // Only render if point exists
                 <Scatter
-                  name="Patient Value"
+                  name="Patient Bilirubin"
                   data={bilirubinPoint}
                   dataKey="bilirubin"
                   fill="red"

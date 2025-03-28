@@ -1,4 +1,5 @@
 import React from "react";
+import "./BiliInfo.css";
 
 const BiliInfo = ({
   ga,

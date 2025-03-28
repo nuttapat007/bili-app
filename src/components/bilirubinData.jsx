@@ -1,231 +1,280 @@
-import React, { useState, useEffect, useCallback } from "react";
-import "./BilirubinGraph.css"; // Keep your main CSS import
+// bilirubinData.js
 
-// Import the child components
-import BiliInput from "./BiliInput";
-import BiliInfo from "./BiliInfo";
-import BiliGraphDisplay from "./BiliGraphDisplay";
-
-// --- Import Data Definitions ---
-import {
-  bilirubinRiskData_old,
-  bilirubinRiskData_new_norisk,
-  bilirubinRiskData_new_risk,
-} from "./bilirubinData"; // Assuming bilirubinData.js is in the same folder
-// --- End Data Definitions ---
-
-const BilirubinGraph = () => {
-  // --- State Definitions ---
-  const [ga, setGA] = useState(37);
-  const [dob, setDob] = useState("");
-  const [totalBilirubin, setTotalBilirubin] = useState(0); // Start with 0 or ''
-  const [gender, setGender] = useState("Male");
-  const [motherBloodGroup, setMotherBloodGroup] = useState("Unknown");
-  const [fatherBloodGroup, setFatherBloodGroup] = useState("Unknown");
-  const [poorApgarOrSepsis, setPoorApgarOrSepsis] = useState(false);
-  const [risk, setRisk] = useState("Low"); // Risk for OLD guidelines
-  const [age_h, setAge_h] = useState(0);
-  const [bilirubinPoint, setBilirubinPoint] = useState([]);
-  const [threshold, setThreshold] = useState(null); // Old threshold
-  const [threshold_new, setThreshold_new] = useState(null); // New threshold
-  const [risk_fact, setRisk_fact] = useState(false); // Neurotoxicity risk factor for NEW guidelines
-  const [riskStatusText, setRiskStatusText] = useState(""); // Text for new graph overlay
-  const [riskStatusColor, setRiskStatusColor] = useState("green"); // Color for new graph overlay
-  // --- End State Definitions ---
-
-  // --- Derived Values & Effects ---
-  // Calculate ABO incompatibility
-  const ABO_incomp =
-    motherBloodGroup === "O" && ["A", "B", "AB"].includes(fatherBloodGroup);
-
-  // Update risk_fact (for new guidelines) whenever dependencies change
-  useEffect(() => {
-    // Per 2022 AAP Guidelines: Risk factors for neurotoxicity
-    const hasRiskFactor =
-      ga < 38 || // Gestational age < 38 weeks is itself a risk factor
-      // albumin < 3.0 g/dL (Not collected here)
-      ABO_incomp || // Isoimmune hemolytic disease
-      // G6PD deficiency (Not collected here)
-      poorApgarOrSepsis || // Sepsis
-      // Temperature instability (Not collected here)
-      // Significant lethargy (Not collected here)
-      false; // Placeholder for other factors if added
-    setRisk_fact(hasRiskFactor);
-
-    setRiskStatusText(
-      hasRiskFactor ? "At Risk (Neurotoxicity)" : "Not At Risk (Neurotoxicity)"
-    );
-    setRiskStatusColor(hasRiskFactor ? "red" : "green");
-  }, [ga, ABO_incomp, poorApgarOrSepsis]);
-
-  // Update risk level (for old guidelines) whenever GA or risk factors change
-  useEffect(() => {
-    const weeks = Math.floor(ga);
-    // Old guideline risk factors were slightly different (included Male gender)
-    const old_risk_factors =
-      poorApgarOrSepsis || ABO_incomp || gender === "Male";
-
-    if (weeks >= 38 && !old_risk_factors) {
-      setRisk("Low");
-    } else if (
-      (weeks >= 38 && old_risk_factors) ||
-      (weeks >= 35 && weeks < 38 && !old_risk_factors)
-    ) {
-      setRisk("Medium");
-    } else if (weeks >= 35 && weeks < 38 && old_risk_factors) {
-      setRisk("High");
-    } else {
-      // Handle GA < 35 if needed, maybe default to High or disable calculation
-      setRisk("High"); // Default assumption or adjust as per guideline scope
-    }
-  }, [ga, gender, poorApgarOrSepsis, ABO_incomp]);
-
-  // Determine which dataset and GA key to use for the NEW graph
-  const bilirubinNewGraphData = risk_fact
-    ? bilirubinRiskData_new_risk
-    : bilirubinRiskData_new_norisk;
-  let gaKey_all = `GA_${Math.max(35, Math.min(40, Math.floor(ga)))}`; // Clamp GA between 35 and 40
-
-  // Specific adjustment for >=38 weeks AT RISK (uses GA_38 curve per 2022 guideline fig 3)
-  if (risk_fact && Math.floor(ga) >= 38) {
-    gaKey_all = "GA_38";
-  }
-
-  // --- Calculation Functions ---
-  // Calculate age in hours (using useCallback to prevent recreation unless dob changes)
-  const calculateAgeInHours = useCallback(() => {
-    if (!dob) return 0; // Return 0 if dob is not set
-    try {
-      const birthTime = new Date(dob).getTime();
-      const currentTime = new Date().getTime();
-
-      // Basic validation: ensure birthTime is not in the future or invalid
-      if (isNaN(birthTime) || birthTime > currentTime) {
-        console.error("Invalid Date of Birth");
-        return 0;
-      }
-
-      const ageInMs = currentTime - birthTime;
-      const ageInHours = Math.floor(ageInMs / (1000 * 60 * 60));
-      return ageInHours >= 0 ? ageInHours : 0; // Ensure age is not negative
-    } catch (error) {
-      console.error("Error calculating age:", error);
-      return 0; // Return 0 on error
-    }
-  }, [dob]); // Dependency array includes dob
-
-  // Interpolation function (Helper)
-  const interpolateThreshold = (data, currentAge) => {
-    if (!data || data.length === 0 || currentAge < 0) return null;
-
-    // Handle age before the first data point
-    if (currentAge <= data[0].age_h) {
-      return data[0].bilirubin;
-    }
-
-    // Handle age after the last data point
-    if (currentAge >= data[data.length - 1].age_h) {
-      return data[data.length - 1].bilirubin;
-    }
-
-    // Find the segment for interpolation
-    for (let i = 0; i < data.length - 1; i++) {
-      const curr = data[i];
-      const next = data[i + 1];
-      if (curr.age_h <= currentAge && currentAge <= next.age_h) {
-        // Avoid division by zero if age points are identical
-        if (next.age_h === curr.age_h) {
-          return curr.bilirubin; // or average, or next.bilirubin
-        }
-        const slope =
-          (next.bilirubin - curr.bilirubin) / (next.age_h - curr.age_h);
-        return curr.bilirubin + slope * (currentAge - curr.age_h);
-      }
-    }
-    return null; // Should not be reached if data is sorted and covers the range
-  };
-
-  // Generate Graph Data and Calculate Thresholds
-  const generateGraphData = () => {
-    const calculatedAge = calculateAgeInHours();
-    setAge_h(calculatedAge); // Update age state
-
-    // Ensure totalBilirubin is a valid number for plotting
-    const plotBilirubin =
-      typeof totalBilirubin === "number" && !isNaN(totalBilirubin)
-        ? totalBilirubin
-        : 0;
-    setBilirubinPoint([{ age_h: calculatedAge, bilirubin: plotBilirubin }]);
-
-    // Calculate OLD threshold
-    const thresholdData_old = bilirubinRiskData_old[risk];
-    const interpolatedThreshold_old = interpolateThreshold(
-      thresholdData_old,
-      calculatedAge
-    );
-    setThreshold(interpolatedThreshold_old);
-
-    // Calculate NEW threshold
-    const thresholdData_new = bilirubinNewGraphData[gaKey_all];
-    const interpolatedThreshold_new = interpolateThreshold(
-      thresholdData_new,
-      calculatedAge
-    );
-    setThreshold_new(interpolatedThreshold_new);
-  };
-  // --- End Calculation Functions ---
-
-  // --- Render ---
-  return (
-    <div className="bili-container">
-      <div className="bili-wrapper">
-        <div className="bili-top">
-          {/* Pass state and setters to BiliInput */}
-          <BiliInput
-            ga={ga}
-            setGA={setGA}
-            dob={dob}
-            setDob={setDob}
-            motherBloodGroup={motherBloodGroup}
-            setMotherBloodGroup={setMotherBloodGroup}
-            fatherBloodGroup={fatherBloodGroup}
-            setFatherBloodGroup={setFatherBloodGroup}
-            totalBilirubin={totalBilirubin}
-            setTotalBilirubin={setTotalBilirubin}
-            gender={gender}
-            setGender={setGender}
-            poorApgarOrSepsis={poorApgarOrSepsis}
-            setPoorApgarOrSepsis={setPoorApgarOrSepsis}
-            generateGraphData={generateGraphData}
-          />
-          {/* Pass display data to BiliInfo */}
-          <BiliInfo
-            ga={ga}
-            gender={gender}
-            age_h={age_h}
-            totalBilirubin={totalBilirubin}
-            threshold={threshold}
-            threshold_new={threshold_new}
-            // risk_fact={risk_fact} // Pass if BiliInfo needs it directly
-          />
-        </div>
-        {/* Pass graph data and config to BiliGraphDisplay */}
-        <div className="bili-bottom">
-          {" "}
-          {/* Added a bottom wrapper for graphs */}
-          <BiliGraphDisplay
-            bilirubinRiskData_old={bilirubinRiskData_old}
-            risk={risk} // For old graph line highlight
-            bilirubinNewGraphData={bilirubinNewGraphData} // Pass the correct new data set
-            gaKey_all={gaKey_all} // For new graph line highlight
-            bilirubinPoint={bilirubinPoint}
-            riskStatusText={riskStatusText} // For new graph overlay
-            riskStatusColor={riskStatusColor} // For new graph overlay
-          />
-        </div>
-      </div>
-    </div>
-  );
+// Data based on AAP 2004 Guidelines (Figure 2)
+// Phototherapy thresholds for infants >= 35 weeks gestation
+export const bilirubinRiskData_old = {
+  High: [
+    { age_h: 0, bilirubin: 4 }, // Note: Guideline starts plot ~12h, extrapolated 0 for continuity
+    { age_h: 12, bilirubin: 6 },
+    { age_h: 24, bilirubin: 8 },
+    { age_h: 36, bilirubin: 9.5 }, // Adjusted slightly based on visual chart reading
+    { age_h: 48, bilirubin: 11 },
+    { age_h: 60, bilirubin: 12 },
+    { age_h: 72, bilirubin: 13 },
+    { age_h: 84, bilirubin: 14 },
+    { age_h: 96, bilirubin: 14.5 },
+    { age_h: 108, bilirubin: 15 },
+    { age_h: 120, bilirubin: 15 },
+    { age_h: 132, bilirubin: 15 },
+    { age_h: 144, bilirubin: 15 },
+    { age_h: 156, bilirubin: 15 },
+    { age_h: 168, bilirubin: 15 }, // Approx > 7 days
+  ],
+  Medium: [
+    { age_h: 0, bilirubin: 5 }, // Extrapolated
+    { age_h: 12, bilirubin: 8 },
+    { age_h: 24, bilirubin: 10 },
+    { age_h: 36, bilirubin: 12 },
+    { age_h: 48, bilirubin: 13 },
+    { age_h: 60, bilirubin: 14 },
+    { age_h: 72, bilirubin: 15 },
+    { age_h: 84, bilirubin: 16 },
+    { age_h: 96, bilirubin: 17 },
+    { age_h: 108, bilirubin: 17.5 }, // Adjusted
+    { age_h: 120, bilirubin: 18 },
+    { age_h: 132, bilirubin: 18 },
+    { age_h: 144, bilirubin: 18 },
+    { age_h: 156, bilirubin: 18 },
+    { age_h: 168, bilirubin: 18 }, // Approx > 7 days
+  ],
+  Low: [
+    { age_h: 0, bilirubin: 7 }, // Extrapolated
+    { age_h: 12, bilirubin: 9.5 }, // Adjusted
+    { age_h: 24, bilirubin: 12 },
+    { age_h: 36, bilirubin: 14 },
+    { age_h: 48, bilirubin: 15 },
+    { age_h: 60, bilirubin: 16.5 }, // Adjusted
+    { age_h: 72, bilirubin: 18 },
+    { age_h: 84, bilirubin: 19 },
+    { age_h: 96, bilirubin: 20 },
+    { age_h: 108, bilirubin: 20.5 }, // Adjusted
+    { age_h: 120, bilirubin: 21 },
+    { age_h: 132, bilirubin: 21 },
+    { age_h: 144, bilirubin: 21 },
+    { age_h: 156, bilirubin: 21 },
+    { age_h: 168, bilirubin: 21 }, // Approx > 7 days
+  ],
 };
 
-export default BilirubinGraph;
+// Data based on AAP 2022 Guidelines (Figure 2)
+// Phototherapy thresholds for infants >= 35 weeks gestation WITHOUT neurotoxicity risk factors
+export const bilirubinRiskData_new_norisk = {
+  GA_35: [
+    { age_h: 0, bilirubin: 6.5 }, // Extrapolated/estimated start
+    { age_h: 12, bilirubin: 8.5 },
+    { age_h: 24, bilirubin: 10.5 },
+    { age_h: 36, bilirubin: 12.5 },
+    { age_h: 48, bilirubin: 14 },
+    { age_h: 60, bilirubin: 15.5 },
+    { age_h: 72, bilirubin: 16.8 },
+    { age_h: 84, bilirubin: 17.8 },
+    { age_h: 96, bilirubin: 18.5 },
+    { age_h: 108, bilirubin: 18.5 },
+    { age_h: 120, bilirubin: 18.7 },
+    { age_h: 132, bilirubin: 18.8 },
+    { age_h: 144, bilirubin: 18.8 },
+    { age_h: 156, bilirubin: 18.9 },
+    { age_h: 168, bilirubin: 19 },
+  ],
+  GA_36: [
+    { age_h: 0, bilirubin: 7 }, // Extrapolated/estimated start
+    { age_h: 12, bilirubin: 9 },
+    { age_h: 24, bilirubin: 11 },
+    { age_h: 36, bilirubin: 13 },
+    { age_h: 48, bilirubin: 14.7 },
+    { age_h: 60, bilirubin: 16.2 },
+    { age_h: 72, bilirubin: 17.5 },
+    { age_h: 84, bilirubin: 18.5 },
+    { age_h: 96, bilirubin: 19.3 },
+    { age_h: 108, bilirubin: 19.4 },
+    { age_h: 120, bilirubin: 19.5 },
+    { age_h: 132, bilirubin: 19.6 },
+    { age_h: 144, bilirubin: 19.7 },
+    { age_h: 156, bilirubin: 19.7 },
+    { age_h: 168, bilirubin: 19.8 },
+  ],
+  GA_37: [
+    { age_h: 0, bilirubin: 7.5 }, // Extrapolated/estimated start
+    { age_h: 12, bilirubin: 9.5 },
+    { age_h: 24, bilirubin: 11.5 },
+    { age_h: 36, bilirubin: 13.5 },
+    { age_h: 48, bilirubin: 15.4 },
+    { age_h: 60, bilirubin: 17 },
+    { age_h: 72, bilirubin: 18.0 },
+    { age_h: 84, bilirubin: 19.2 },
+    { age_h: 96, bilirubin: 20.0 },
+    { age_h: 108, bilirubin: 20.0 },
+    { age_h: 120, bilirubin: 20.1 },
+    { age_h: 132, bilirubin: 20.1 },
+    { age_h: 144, bilirubin: 20.1 },
+    { age_h: 156, bilirubin: 20.2 },
+    { age_h: 168, bilirubin: 20.2 },
+  ],
+  GA_38: [
+    { age_h: 0, bilirubin: 8 }, // Extrapolated/estimated start
+    { age_h: 12, bilirubin: 10 },
+    { age_h: 24, bilirubin: 12.2 },
+    { age_h: 36, bilirubin: 14.2 },
+    { age_h: 48, bilirubin: 16 },
+    { age_h: 60, bilirubin: 17.5 },
+    { age_h: 72, bilirubin: 18.8 },
+    { age_h: 84, bilirubin: 19.8 },
+    { age_h: 96, bilirubin: 20.7 },
+    { age_h: 108, bilirubin: 20.8 },
+    { age_h: 120, bilirubin: 20.9 },
+    { age_h: 132, bilirubin: 21 },
+    { age_h: 144, bilirubin: 21 },
+    { age_h: 156, bilirubin: 21 },
+    { age_h: 168, bilirubin: 21 },
+  ],
+  GA_39: [
+    { age_h: 0, bilirubin: 8.5 }, // Extrapolated/estimated start
+    { age_h: 12, bilirubin: 10.5 },
+    { age_h: 24, bilirubin: 12.8 },
+    { age_h: 36, bilirubin: 14.8 },
+    { age_h: 48, bilirubin: 16.6 },
+    { age_h: 60, bilirubin: 18.1 },
+    { age_h: 72, bilirubin: 19.4 },
+    { age_h: 84, bilirubin: 20.5 },
+    { age_h: 96, bilirubin: 21.5 },
+    { age_h: 108, bilirubin: 21.6 },
+    { age_h: 120, bilirubin: 21.7 },
+    { age_h: 132, bilirubin: 21.8 },
+    { age_h: 144, bilirubin: 21.9 },
+    { age_h: 156, bilirubin: 21.9 },
+    { age_h: 168, bilirubin: 21.9 },
+  ],
+  GA_40: [
+    // Includes >= 40 weeks
+    { age_h: 0, bilirubin: 9 }, // Extrapolated/estimated start
+    { age_h: 12, bilirubin: 11 },
+    { age_h: 24, bilirubin: 13.2 },
+    { age_h: 36, bilirubin: 15.2 },
+    { age_h: 48, bilirubin: 17 },
+    { age_h: 60, bilirubin: 18.5 },
+    { age_h: 72, bilirubin: 19.8 },
+    { age_h: 84, bilirubin: 21 },
+    { age_h: 96, bilirubin: 21.8 }, // Note: Chart seems to plateau near 22
+    { age_h: 108, bilirubin: 22.0 }, // Adjusted slightly based on visual plateau
+    { age_h: 120, bilirubin: 22.0 },
+    { age_h: 132, bilirubin: 22.0 },
+    { age_h: 144, bilirubin: 22.0 },
+    { age_h: 156, bilirubin: 22.0 },
+    { age_h: 168, bilirubin: 22.0 },
+  ],
+};
+
+// Data based on AAP 2022 Guidelines (Figure 3)
+// Phototherapy thresholds for infants >= 35 weeks gestation WITH neurotoxicity risk factors
+export const bilirubinRiskData_new_risk = {
+  GA_35: [
+    { age_h: 0, bilirubin: 4.5 }, // Extrapolated/estimated start
+    { age_h: 12, bilirubin: 7 },
+    { age_h: 24, bilirubin: 9 },
+    { age_h: 36, bilirubin: 10.5 },
+    { age_h: 48, bilirubin: 12.1 },
+    { age_h: 60, bilirubin: 13.5 },
+    { age_h: 72, bilirubin: 14.5 },
+    { age_h: 84, bilirubin: 15.5 },
+    { age_h: 96, bilirubin: 16.0 },
+    { age_h: 108, bilirubin: 16.1 },
+    { age_h: 120, bilirubin: 16.2 },
+    { age_h: 132, bilirubin: 16.3 },
+    { age_h: 144, bilirubin: 16.4 },
+    { age_h: 156, bilirubin: 16.5 },
+    { age_h: 168, bilirubin: 16.5 },
+  ],
+  GA_36: [
+    { age_h: 0, bilirubin: 5.5 }, // Extrapolated/estimated start
+    { age_h: 12, bilirubin: 7.5 },
+    { age_h: 24, bilirubin: 9.5 },
+    { age_h: 36, bilirubin: 11.2 },
+    { age_h: 48, bilirubin: 12.8 },
+    { age_h: 60, bilirubin: 14.2 },
+    { age_h: 72, bilirubin: 15.4 },
+    { age_h: 84, bilirubin: 16.4 },
+    { age_h: 96, bilirubin: 17.0 },
+    { age_h: 108, bilirubin: 17.1 },
+    { age_h: 120, bilirubin: 17.2 },
+    { age_h: 132, bilirubin: 17.3 },
+    { age_h: 144, bilirubin: 17.4 },
+    { age_h: 156, bilirubin: 17.4 },
+    { age_h: 168, bilirubin: 17.5 },
+  ],
+  GA_37: [
+    { age_h: 0, bilirubin: 6.0 }, // Extrapolated/estimated start
+    { age_h: 12, bilirubin: 8.0 },
+    { age_h: 24, bilirubin: 10.0 },
+    { age_h: 36, bilirubin: 12.0 },
+    { age_h: 48, bilirubin: 13.5 },
+    { age_h: 60, bilirubin: 15.0 },
+    { age_h: 72, bilirubin: 16.0 },
+    { age_h: 84, bilirubin: 17.0 },
+    { age_h: 96, bilirubin: 17.8 },
+    { age_h: 108, bilirubin: 17.9 },
+    { age_h: 120, bilirubin: 18.0 },
+    { age_h: 132, bilirubin: 18.0 },
+    { age_h: 144, bilirubin: 18.1 },
+    { age_h: 156, bilirubin: 18.2 },
+    { age_h: 168, bilirubin: 18.2 },
+  ],
+  GA_38: [
+    // Includes >= 38 weeks WITH risk factors
+    { age_h: 0, bilirubin: 6.4 }, // Extrapolated/estimated start
+    { age_h: 12, bilirubin: 8.5 },
+    { age_h: 24, bilirubin: 10.5 },
+    { age_h: 36, bilirubin: 12.4 },
+    { age_h: 48, bilirubin: 14.0 },
+    { age_h: 60, bilirubin: 15.4 },
+    { age_h: 72, bilirubin: 16.5 },
+    { age_h: 84, bilirubin: 17.5 },
+    { age_h: 96, bilirubin: 18.2 },
+    { age_h: 108, bilirubin: 18.2 },
+    { age_h: 120, bilirubin: 18.2 },
+    { age_h: 132, bilirubin: 18.2 },
+    { age_h: 144, bilirubin: 18.2 },
+    { age_h: 156, bilirubin: 18.2 },
+    { age_h: 168, bilirubin: 18.2 },
+  ],
+  // For GA 39 and 40 WITH risk factors, the 2022 guideline uses the GA 38 WITH risk factors curve (Figure 3)
+  GA_39: [
+    // Same as GA_38 with risk
+    { age_h: 0, bilirubin: 6.4 },
+    { age_h: 12, bilirubin: 8.5 },
+    { age_h: 24, bilirubin: 10.5 },
+    { age_h: 36, bilirubin: 12.4 },
+    { age_h: 48, bilirubin: 14.0 },
+    { age_h: 60, bilirubin: 15.4 },
+    { age_h: 72, bilirubin: 16.5 },
+    { age_h: 84, bilirubin: 17.5 },
+    { age_h: 96, bilirubin: 18.2 },
+    { age_h: 108, bilirubin: 18.2 },
+    { age_h: 120, bilirubin: 18.2 },
+    { age_h: 132, bilirubin: 18.2 },
+    { age_h: 144, bilirubin: 18.2 },
+    { age_h: 156, bilirubin: 18.2 },
+    { age_h: 168, bilirubin: 18.2 },
+  ],
+  GA_40: [
+    // Same as GA_38 with risk
+    { age_h: 0, bilirubin: 6.4 },
+    { age_h: 12, bilirubin: 8.5 },
+    { age_h: 24, bilirubin: 10.5 },
+    { age_h: 36, bilirubin: 12.4 },
+    { age_h: 48, bilirubin: 14.0 },
+    { age_h: 60, bilirubin: 15.4 },
+    { age_h: 72, bilirubin: 16.5 },
+    { age_h: 84, bilirubin: 17.5 },
+    { age_h: 96, bilirubin: 18.2 },
+    { age_h: 108, bilirubin: 18.2 },
+    { age_h: 120, bilirubin: 18.2 },
+    { age_h: 132, bilirubin: 18.2 },
+    { age_h: 144, bilirubin: 18.2 },
+    { age_h: 156, bilirubin: 18.2 },
+    { age_h: 168, bilirubin: 18.2 },
+  ],
+};
+
+// Note: The data points are based on visual approximations from the AAP guideline figures.
+// Small discrepancies may exist compared to precise values if available elsewhere.
+// Initial values (age_h: 0) are extrapolated estimates as the charts often start later.

@@ -1,4 +1,5 @@
 import React from "react";
+import "./BiliInput.css";
 
 const BiliInput = ({
   ga,
@@ -19,7 +20,7 @@ const BiliInput = ({
 }) => {
   return (
     <div className="bili-input">
-      <h1 className="app-text">Bili App👶</h1>
+      <h1 className="app-text"> Neobili 👶</h1>
       <div className="input_all">
         {/* Gestational Age Input */}
         <div className="ga_input">

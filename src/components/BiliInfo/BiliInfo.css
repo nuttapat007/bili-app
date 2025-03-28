@@ -1,0 +1,17 @@
+/* This section is display textbox field */
+.center-text {
+  text-align: center;
+}
+
+.display_upper_text {
+  padding: 20px;
+  padding-top: 0px;
+}
+.phototherapy-text {
+  text-align: center;
+  margin-top: 50px;
+}
+
+.phototherapy-label {
+  font-size: 1.25rem; /* or 20px */
+}

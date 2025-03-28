@@ -1,0 +1,9 @@
+.bili-graph {
+  width: 88%;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  padding: 1rem;
+  background-color: #fdfdfd;
+  margin-top: 20px;
+  text-align: center;
+}
